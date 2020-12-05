@@ -3,7 +3,7 @@
 
 #define ROWS 128
 #define COLS 8
-#define SEATS 1024 // this is probably wrong, I don't care tho
+#define SEATS 1024
 
 int seats[SEATS] = {0};
 
