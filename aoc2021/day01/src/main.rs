@@ -1,28 +1,23 @@
+use std::env;
+use std::fs;
+
 fn main() {
-    let input = include_str!("../input.in");
+    let input_file = env::args().nth(1).expect("You need to pass an input file!");
+    let input = fs::read_to_string(input_file).unwrap();
 
     let depths: Vec<u32> = input
         .lines()
         .map(|line| line.parse::<u32>().unwrap())
         .collect();
+    
+    println!("Part 1: {}", count_increases(&depths, 1));
+    println!("Part 2: {}", count_increases(&depths, 3));
+}
 
-    let num_increases = depths
+fn count_increases(depths: &Vec<u32>, skip: usize) -> usize {
+    depths
         .iter()
-        .zip(depths.iter().skip(1))
+        .zip(depths.iter().skip(skip))
         .filter(|(c1, c2)| c1 < c2)
-        .count();
-    println!("Part 1: {}", num_increases);
-
-    let sums: Vec<u32> = depths
-        .iter()
-        .zip(depths.iter().skip(1))
-        .zip(depths.iter().skip(2))
-        .map(|((c1, c2), c3)| c1 + c2 + c3)
-        .collect();
-    let sum_increases = sums
-        .iter()
-        .zip(sums.iter().skip(1))
-        .filter(|(c1, c2)| c1 < c2)
-        .count();
-    println!("Part 2: {}", sum_increases);
+        .count()
 }
