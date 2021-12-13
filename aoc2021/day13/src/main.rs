@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -7,11 +7,37 @@ use rltk::{GameState, Rltk};
 
 struct State {
     dots: HashSet<(u32, u32)>,
+    fold_commands: VecDeque<(char, u32)>,
+    part1: usize,
 }
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
         ctx.cls();
+
+        if let Some(fold) = self.fold_commands.pop_front() {
+            fold_dots(&mut self.dots, fold.0, fold.1);
+            match fold.0 {
+                'x' => {
+                    for y in 0..ctx.height_pixels {
+                        ctx.print(fold.1, y, String::from("|"));
+                    }
+                }
+                'y' => {
+                    for x in 0..ctx.width_pixels {
+                        ctx.print(x, fold.1, String::from("-"));
+                    }
+                }
+                _ => {
+                    unreachable!("please work too");
+                }
+            }
+        } else {
+            let p1 = format!("Part 1: {}", self.part1);
+            ctx.print(10, 40, p1);
+        }
+
+        // Draw
         for (x, y) in self.dots.iter() {
             ctx.print(*x, *y, "#");
         }
@@ -26,6 +52,8 @@ fn main() {
     let mut first_part = true;
 
     let mut dots = HashSet::new();
+    let mut fold_commands = VecDeque::new();
+    let mut part1 = 0;
 
     for line in reader.lines() {
         let line = line.unwrap();
@@ -44,44 +72,15 @@ fn main() {
             let (fold, value) = line.split_once('=').unwrap();
             let value: u32 = value.parse().unwrap();
             let var = fold.chars().last().unwrap();
-
-            match var {
-                'x' => {
-                    let mut folded = Vec::new();
-                    for (x, y) in dots.iter() {
-                        if *x > value {
-                            folded.push((*x, *y));
-                        }
-                    }
-
-                    for dot in folded.iter() {
-                        dots.remove(dot);
-                        let mut new = *dot;
-                        new.0 = 2 * value - new.0;
-                        dots.insert(new);
-                    }
-                }
-                'y' => {
-                    let mut folded = Vec::new();
-                    for (x, y) in dots.iter() {
-                        if *y > value {
-                            folded.push((*x, *y));
-                        }
-                    }
-
-                    for dot in folded.iter() {
-                        dots.remove(dot);
-                        let mut new = *dot;
-                        new.1 = 2 * value - new.1;
-                        dots.insert(new);
-                    }
-                }
-                _ => unreachable!("you shouldn't be seeing this"),
+            if !first_part {
+                fold_commands.push_back((var, value));
             }
 
             if first_part {
                 first_part = false;
+                fold_dots(&mut dots, var, value);
                 println!("Part 1: {}", dots.len());
+                part1 = dots.len();
             }
         }
     }
@@ -91,10 +90,51 @@ fn main() {
 
     let ctx = RltkBuilder::simple80x50()
         .with_title("Advent of Code 2021 - Day 13")
+        .with_fps_cap(4.0)
         .build()
         .expect("Please work");
 
-    let gs = State { dots };
+    let gs = State {
+        dots,
+        fold_commands,
+        part1,
+    };
 
     rltk::main_loop(ctx, gs).unwrap();
+}
+
+fn fold_dots(dots: &mut HashSet<(u32, u32)>, var: char, value: u32) {
+    match var {
+        'x' => {
+            let mut folded = Vec::new();
+            for (x, y) in dots.iter() {
+                if *x > value {
+                    folded.push((*x, *y));
+                }
+            }
+
+            for dot in folded.iter() {
+                dots.remove(dot);
+                let mut new = *dot;
+                new.0 = 2 * value - new.0;
+                dots.insert(new);
+            }
+        }
+        'y' => {
+            let mut folded = Vec::new();
+            for (x, y) in dots.iter() {
+                if *y > value {
+                    folded.push((*x, *y));
+                }
+            }
+
+            for dot in folded.iter() {
+                dots.remove(dot);
+                let mut new = *dot;
+                new.1 = 2 * value - new.1;
+                dots.insert(new);
+            }
+        }
+        _ => unreachable!("you shouldn't be seeing this"),
+    }
 }
