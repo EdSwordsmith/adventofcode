@@ -12,11 +12,7 @@ struct Cave {
 
 impl Cave {
     fn new(big: bool, start: bool, end: bool) -> Self {
-        Cave {
-            big,
-            start,
-            end,
-        }
+        Cave { big, start, end }
     }
 
     fn small() -> Self {
@@ -40,8 +36,6 @@ struct CavesGraph {
     by_name: HashMap<String, usize>,
     caves: Vec<Cave>,
     graph: Vec<Vec<usize>>,
-    paths: u32,
-    paths2: HashSet<Vec<usize>>,
 }
 
 impl CavesGraph {
@@ -50,8 +44,6 @@ impl CavesGraph {
             by_name: HashMap::new(),
             caves: Vec::new(),
             graph: Vec::new(),
-            paths: 0,
-            paths2: HashSet::new(),
         }
     }
 
@@ -85,68 +77,43 @@ impl CavesGraph {
         self.graph[n1].push(n2);
     }
 
-    fn solve(&mut self) {
+    fn solve(&mut self) -> u32 {
         let start = self.add_or_get(&String::from("start"));
         let mut visited = Vec::new();
-        self.paths = 0;
         for _ in self.caves.iter() {
             visited.push(false);
         }
 
-        self.dfs(start, visited);
+        self.dfs(start, visited, false, false)
     }
 
-    fn dfs(&mut self, index: usize, mut visited: Vec<bool>) {
-        //println!("{} - {:?}", index, visited);
+    fn solve2(&mut self) -> u32 {
+        let start = self.add_or_get(&String::from("start"));
+        let mut visited = Vec::new();
+        for _ in self.caves.iter() {
+            visited.push(false);
+        }
+        self.dfs(start, visited, false, true)
+    }
 
+    fn dfs(&mut self, index: usize, mut visited: Vec<bool>, mut twice: bool, part2: bool) -> u32 {
         if !self.caves[index].big {
+            if visited[index] {
+                twice = true;
+            }
             visited[index] = true;
         }
 
-        for adj in self.graph[index].clone().iter() {
-            if !visited[*adj] {
-                self.dfs(*adj, visited.clone());
-            }
-
-            if self.caves[*adj].end {
-                self.paths += 1;
-            }
-        }
-    }
-
-    fn solve2(&mut self) {
-        let start = self.add_or_get(&String::from("start"));
-        let end = self.add_or_get(&String::from("end"));
-        let mut visited = Vec::new();
-        self.paths2.clear();
-        for _ in self.caves.iter() {
-            visited.push(0);
-        }
-        visited[start] = 1;
-        visited[end] = 1;
-
-        self.dfs2(start, visited, Vec::new());
-        self.paths2.len();
-    }
-
-    fn dfs2(&mut self, index: usize, mut visited: Vec<u32>, mut path: Vec<usize>) {
-        path.push(index);
-
         if self.caves[index].end {
-            println!("{} - {:?}", index, path);
-            self.paths2.insert(path);
-            return;
+            return 1;
         }
 
-        if !self.caves[index].big {
-            visited[index] += 1;
-        }
-
-        for adj in self.graph[index].clone().iter() {
-            if visited[*adj] < 2 {
-                self.dfs2(*adj, visited.clone(), path.clone());
-            }
-        }
+        self.graph[index]
+            .clone()
+            .iter()
+            .filter(|i| !visited[**i] || (!twice && part2))
+            .map(|i| self.dfs(*i, visited.clone(), twice, part2))
+            .sum()
     }
 }
 
@@ -176,11 +143,6 @@ fn main() {
             }
         });
 
-    graph.solve();
-    println!("{}", graph.paths);
-    graph.solve2();
-    println!("{}", graph.paths);
-
-    //let this_isnt_gonna_work = BFS(&by_name, &mut caves, &graph);
-    //print!("{}", this_isnt_gonna_work);
+    println!("{}", graph.solve());
+    println!("{}", graph.solve2());
 }
