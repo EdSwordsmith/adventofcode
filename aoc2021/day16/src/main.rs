@@ -1,156 +1,176 @@
 use std::env;
 use std::fs;
-use std::str::Chars;
-fn main() {
-    let binary = get_binary();
-    let mut bits = binary.chars();
-    let mut version_sum = 0;
-    let mut value = 0;
-    parse_packet(&mut bits, &mut version_sum, &mut value);
-    println!("Part 1: {}", version_sum);
-    println!("Part 2: {}", value);
+
+struct PacketReader<'a> {
+    bytes: &'a [u8],
+    current: usize,
+    bits: u8,
+    read: u64,
 }
 
-fn parse_packet(bits: &mut Chars, version_sum: &mut u64, value: &mut u64) -> u64 {
-    *value = 0;
-    let version = get_n_bits(3, bits);
-    let type_id = get_n_bits(3, bits);
-
-    let mut bits_read = 6;
-    *version_sum += version;
-
-    if type_id != 4 {
-        bits_read += 1;
-        let length_type = get_n_bits(1, bits);
-
-        if length_type == 0 {
-            let subpackets_bits = get_n_bits(15, bits);
-            let mut read = 0;
-            bits_read += 15;
-            let mut first = true;
-            let mut prev = 0;
-
-            while subpackets_bits > read {
-                let mut v = 0;
-                read += parse_packet(bits, version_sum, &mut v);
-                if type_id == 0 {
-                    *value += v;
-                } else if type_id == 1 {
-                    *value *= v;
-                } else if type_id == 2 {
-                    if v < *value {
-                        *value = v;
-                    }
-                } else if type_id == 3 {
-                    if v > *value {
-                        *value = v;
-                    }
-                } else if type_id == 5 {
-                    if first {
-                        prev = v;
-                    } else {
-                        *value = if v < prev { 1 } else { 0 };
-                    }
-                } else if type_id == 6 {
-                    if first {
-                        prev = v;
-                    } else {
-                        *value = if v > prev { 1 } else { 0 };
-                    }
-                } else if type_id == 7 {
-                    if first {
-                        prev = v;
-                    } else {
-                        *value = if v == prev { 1 } else { 0 };
-                    }
-                }
-
-                first = false;
-            }
-        } else {
-            let subpackets_count = get_n_bits(11, bits);
-            let mut prev = 0;
-            bits_read += 11;
-            for i in 0..subpackets_count {
-                let mut v = 0;
-                bits_read += parse_packet(bits, version_sum, &mut v);
-                if type_id == 0 {
-                    *value += v;
-                } else if type_id == 1 {
-                    *value *= v;
-                } else if type_id == 2 {
-                    if v < *value {
-                        *value = v;
-                    }
-                } else if type_id == 3 {
-                    if v > *value {
-                        *value = v;
-                    }
-                } else if type_id == 5 {
-                    if i == 0 {
-                        prev = v;
-                    } else {
-                        *value = if v < prev { 1 } else { 0 };
-                    }
-                } else if type_id == 6 {
-                    if i == 0 {
-                        prev = v;
-                    } else {
-                        *value = if v > prev { 1 } else { 0 };
-                    }
-                } else if type_id == 7 {
-                    if i == 0 {
-                        prev = v;
-                    } else {
-                        *value = if v == prev { 1 } else { 0 };
-                    }
-                }
-            }
-        }
-    } else {
-        let mut nextbits = get_n_bits(5, bits);
-        bits_read += 5;
-        let mut keep_going = nextbits & 16 != 0;
-        *value = *value * 16 + (nextbits & 15);
-
-        while keep_going {
-            nextbits = get_n_bits(5, bits);
-            keep_going = nextbits & 16 != 0;
-            *value = *value * 16 + (nextbits & 15);
-            bits_read += 5;
+impl<'a> PacketReader<'a> {
+    fn new(bytes: &[u8]) -> PacketReader {
+        PacketReader {
+            bytes,
+            current: 0,
+            bits: 0,
+            read: 0,
         }
     }
 
-    bits_read
+    fn read_n_bits(&mut self, n: u32) -> u32 {
+        let mut bits = n;
+        let mut res = 0;
+
+        while bits > 0 {
+            let b = bits.min((8 - self.bits) as u32) as u8;
+            let shift = (8 - self.bits) - b;
+            let mask = (0b11111111 >> self.bits + shift) << shift;
+            res = res << b;
+            res = res | (((self.bytes[self.current] & mask) >> shift) as u32);
+
+            bits -= b as u32;
+            self.read += b as u64;
+            self.bits = (self.bits + b) % 8;
+            if self.bits == 0 {
+                self.current += 1;
+            }
+        }
+
+        res
+    }
 }
 
-fn get_binary() -> String {
+#[derive(Debug)]
+struct Packet {
+    version: u8,
+    packet_type: PacketType,
+}
+
+#[derive(Debug)]
+enum PacketType {
+    LitValue { value: u128 },
+    Operator { op: u8, packets: Vec<Packet> },
+}
+
+impl PacketType {
+    fn parse(reader: &mut PacketReader) -> PacketType {
+        let packet_type = reader.read_n_bits(3) as u8;
+
+        match packet_type {
+            4 => {
+                let mut value: u128 = 0;
+
+                loop {
+                    let cont = reader.read_n_bits(1);
+                    let hbyte = reader.read_n_bits(4) as u128;
+                    value = (value << 4) | hbyte;
+
+                    if cont == 0 {
+                        break;
+                    }
+                }
+
+                PacketType::LitValue { value }
+            }
+            _ => {
+                let mut packets = vec![];
+                let length_type = reader.read_n_bits(1);
+
+                if length_type == 0 {
+                    let bits = reader.read_n_bits(15) as u64;
+                    let target_read = reader.read + bits;
+                    while reader.read != target_read {
+                        let packet = Packet::parse(reader);
+                        packets.push(packet);
+                    }
+                } else {
+                    let npackets = reader.read_n_bits(11);
+                    for _ in 0..npackets {
+                        let packet = Packet::parse(reader);
+                        packets.push(packet);
+                    }
+                }
+
+                PacketType::Operator {
+                    op: packet_type as u8,
+                    packets,
+                }
+            }
+        }
+    }
+}
+
+impl Packet {
+    fn parse(reader: &mut PacketReader) -> Packet {
+        let version = reader.read_n_bits(3) as u8;
+        Packet {
+            version,
+            packet_type: PacketType::parse(reader),
+        }
+    }
+
+    fn versions_sum(&self) -> u32 {
+        let sum = match &self.packet_type {
+            PacketType::Operator { op: _, packets } => {
+                packets.iter().map(|packet| packet.versions_sum()).sum()
+            }
+            _ => 0,
+        };
+
+        self.version as u32 + sum
+    }
+
+    fn eval(&self) -> u128 {
+        match &self.packet_type {
+            PacketType::LitValue { value } => *value,
+            PacketType::Operator { op, packets } => match *op {
+                0 => packets.iter().map(|p| p.eval()).sum(),
+                1 => packets.iter().map(|p| p.eval()).product(),
+                2 => packets.iter().map(|p| p.eval()).min().unwrap(),
+                3 => packets.iter().map(|p| p.eval()).max().unwrap(),
+                5 => {
+                    if packets[0].eval() > packets[1].eval() {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                6 => {
+                    if packets[0].eval() < packets[1].eval() {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                7 => {
+                    if packets[0].eval() == packets[1].eval() {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                _ => unreachable!("Invalid operation"),
+            },
+        }
+    }
+}
+
+fn main() {
+    let bytes = read_hex_input();
+    let mut reader = PacketReader::new(&bytes);
+    let packet = Packet::parse(&mut reader);
+
+    // println!("{:?}", packet);
+    println!("Part 1: {}", packet.versions_sum());
+    println!("Part 2: {}", packet.eval());
+}
+
+fn read_hex_input() -> Vec<u8> {
     let input_path = env::args().nth(1).unwrap();
     let input = fs::read_to_string(input_path).unwrap();
-    let mut binary = String::new();
-
-    for c in input.chars() {
-        let value = c.to_digit(16).unwrap();
-        let mut hbyte = format!("{:b}", value);
-        while hbyte.len() < 4 {
-            hbyte = String::from("0") + hbyte.as_str();
-        }
-        binary += hbyte.as_str();
-    }
-
-    binary
-}
-
-fn get_n_bits(n: usize, bits: &mut Chars) -> u64 {
-    let mut value = 0;
-    for _ in 0..n {
-        if let Some(bit) = bits.next() {
-            let bit = bit.to_digit(2).unwrap();
-            value = value * 2 + bit;
-        } else {
-            break;
-        }
-    }
-
-    value as u64
+    (0..input.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&input[i..i + 2], 16).unwrap())
+        .collect()
 }
