@@ -6,9 +6,8 @@ fn main() {
         .lock()
         .lines()
         .map(|s| s.unwrap().parse::<u32>().unwrap_or(0))
-        .fold(Vec::new(), |acc, value| {
+        .fold(Vec::new(), |mut acc, value| {
             let mut current_size = acc.len();
-            let mut acc = acc.clone();
             
             if value == 0 || current_size == 0 {
                 acc.push(0);
