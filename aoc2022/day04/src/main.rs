@@ -46,7 +46,7 @@ fn main() {
 
     let second_part = pairs
         .iter()
-        .filter(|(r1, r2)| r1.overlaps(r2) || r2.overlaps())
+        .filter(|(r1, r2)| r1.overlaps(r2) || r2.overlaps(r1))
         .count();
 
     println!("Part 1: {}", second_part);
