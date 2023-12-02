@@ -32,6 +32,7 @@
           ocamlPackages.odoc
           ocamlPackages.utop
           ocamlPackages.findlib
+          ocamlPackages.angstrom
         ];
       };
     });

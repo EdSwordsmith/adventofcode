@@ -1,4 +1,4 @@
 (executable
  (public_name day02)
  (name main)
- (libraries day02))
+ (libraries day02 angstrom))
