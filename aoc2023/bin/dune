@@ -1,0 +1,4 @@
+(executables
+ (public_names day01 day02)
+ (names day01 day02)
+ (libraries aoc2023 angstrom))
