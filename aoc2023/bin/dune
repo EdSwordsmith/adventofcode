@@ -1,4 +1,4 @@
 (executables
- (public_names day01 day02 day03 day04 day05)
- (names day01 day02 day03 day04 day05)
+ (public_names day01 day02 day03 day04 day05 day06)
+ (names day01 day02 day03 day04 day05 day06)
  (libraries aoc2023 angstrom))
