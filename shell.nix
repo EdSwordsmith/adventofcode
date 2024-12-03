@@ -15,6 +15,8 @@ pkgs.mkShell {
     julia_110-bin
     # Go
     go
+    # Elixir
+    elixir
     # OCaml
     dune_3
     ocaml
